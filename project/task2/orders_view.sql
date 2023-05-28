@@ -1,5 +1,3 @@
--- добавьте код сюда
-CREATE OR REPLACE VIEW analysis.Orders AS 
 WITH tab AS (SELECT order_id,
        MAX(dttm) AS dttm
 FROM production.orderstatuslog
