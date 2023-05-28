@@ -41,10 +41,15 @@ orderstatuslog - суда записываются логи заказов
 products - таблица с информацией о продукции 
 users - информация о клиентах 
 
-Для построения витрины будем использовать таблицу - orders, где будет поле status будет фильтроваться по условию closed. (order_id(идентификатор покупки), order_ts(дата и время покупки), user_id(идентификатор клиента), cost(сумма транзакции), status(статус заказа))
-Так же будет использоваться таблица orderstatuses со след. полями id - идентификатор статуса, key - статус заказа. 
-Таблица users для получения user_id.
+Для построения витрины будем использовать таблицу - production.orders, где будет поле status будет фильтроваться по условию closed (4). Используемые поля: 
+order_id - идентификатор заказа
+order_ts - дата и время заказа
+user_id - идентификатор клиента
+cost - сумма оплаты 
+status - статус заказа
 
+Так же используется таблица - production.users:
+id - идентификатор клиента 
 
 ## 1.3. Проанализируйте качество данных
 
@@ -55,20 +60,19 @@ users - информация о клиентах
 Пропущенные значения и дубликаты отсутствуют.(is null, distinct).
 
 На данные установлены ограничения повышающие качество данных: 
-таблица orders
+таблица production.orders
 order_id int4 NOT NULL - не может быть нулевых значений в айди заказа
 order_ts timestamp NOT NULL, - для времени заказа уже установлен верный формат(timestamp) и ограничения нулевых значений 
 "cost" numeric(19, 5) NOT NULL DEFAULT 0, - значения по дефолту не могут быть нулевыми
 status int4 NOT NULL статус не может быть нулевым
 
-Выделим отдельно уставлена проверка на сумму коста (финального платежа) и ограничение по первичному ключу по столбцу order_id
+Выделим отдельно установлена проверка на сумму коста (финального платежа) и ограничение по первичному ключу по столбцу order_id
 CONSTRAINT orders_check CHECK ((cost = (payment + bonus_payment)))
 CONSTRAINT orders_pkey PRIMARY KEY (order_id)
 
-В таблице orderstatuses так же все в порядке ограничения по первичному ключу на столбец id и установлено, что значения в столбцах не могут принимать null значения 
-id int4 NOT NULL,
-"key" varchar(255) NOT NULL,
-CONSTRAINT orderstatuses_pkey PRIMARY KEY (id)
+production.users: 
+id int4 NOT NULL идентификатор не может быть нулевым для клиентов 
+CONSTRAINT users_pkey PRIMARY KEY (id) установлены ограничения по первичному ключу 
 
 ## 1.4. Подготовьте витрину данных
 
@@ -108,9 +112,57 @@ CREATE TABLE dm_rfm_segments(
 Для решения предоставьте код запроса.
 
 ```SQL
---Впишите сюда ваш ответ
+-- Поочередно заполняем таблицы для нашей витрины
+CREATE TABLE analysis.tmp_rfm_frequency (
+ user_id INT NOT NULL PRIMARY KEY,
+ frequency INT NOT NULL CHECK(frequency >= 1 AND frequency <= 5)
+);
+INSERT INTO tmp_rfm_frequency (user_id, frequency)
+SELECT u.id AS user_id, 
+       NTILE(5) OVER (ORDER BY COUNT(o.order_id) ASC) AS frequency 
+FROM analysis.users AS u
+LEFT JOIN analysis.orders AS o ON u.id = o.user_id
+WHERE o.status = '4' 
+      AND EXTRACT(year FROM o.order_ts) = '2022'
+GROUP BY 1
+ORDER BY frequency ASC;
 
+CREATE TABLE analysis.tmp_rfm_monetary_value (
+ user_id INT NOT NULL PRIMARY KEY,
+ monetary_value INT NOT NULL CHECK(monetary_value >= 1 AND monetary_value <= 5)
+);
+INSERT INTO tmp_rfm_monetary_value (user_id, monetary_value)
+SELECT u.id AS user_id,
+       NTILE(5) OVER (ORDER BY SUM(o.cost) ASC) AS monetary_value
+FROM analysis.users AS u
+LEFT JOIN analysis.orders AS o ON u.id = o.user_id
+WHERE o.status = '4' 
+      AND extract(year FROM o.order_ts) = '2022'
+GROUP BY 1
+ORDER BY monetary_value ASC;
 
+CREATE TABLE analysis.tmp_rfm_recency (
+ user_id INT NOT NULL PRIMARY KEY,
+ recency INT NOT NULL CHECK(recency >= 1 AND recency <= 5)
+);
+INSERT INTO analysis.tmp_rfm_recency(user_id, recency)
+SELECT u.id AS user_id,
+       NTILE(5) OVER (ORDER BY MAX(o.order_ts) NULLS FIRST) AS recency
+FROM analysis.users AS u
+LEFT JOIN analysis.orders AS o ON u.id = o.user_id
+WHERE o.status = '4'
+      AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+GROUP BY 1;
+
+-- Добавляем консолидированную информацию в нашу витрину (dm_rfm_segments)
+INSERT INTO analysis.dm_rfm_segments (user_id, recency, frequency, monetary_value)
+SELECT r.user_id,
+       r.recency,
+       f.frequency,
+       m.monetary_value
+FROM analysis.tmp_rfm_recency AS r
+LEFT JOIN analysis.tmp_rfm_frequency AS f ON r.user_id = f.user_id
+LEFT JOIN analysis.tmp_rfm_monetary_value AS m ON r.user_id = m.user_id;
 ```
 
 

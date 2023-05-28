@@ -1,3 +1,4 @@
+-- Запрос для корректной работы витрины после коррекции. 
 WITH tab AS (SELECT order_id,
        MAX(dttm) AS dttm
 FROM production.orderstatuslog

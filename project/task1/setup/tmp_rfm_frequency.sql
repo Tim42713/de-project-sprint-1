@@ -1,9 +1,10 @@
--- С
+-- Создаем таблицу tmp_rfm_frequency в схеме analysis
 CREATE TABLE analysis.tmp_rfm_frequency (
  user_id INT NOT NULL PRIMARY KEY,
  frequency INT NOT NULL CHECK(frequency >= 1 AND frequency <= 5)
 );
 
+-- Заполняем таблицу tmp_rfm_frequency
 INSERT INTO tmp_rfm_frequency (user_id, frequency)
 SELECT u.id AS user_id, 
        NTILE(5) OVER (ORDER BY COUNT(o.order_id) ASC) AS frequency 

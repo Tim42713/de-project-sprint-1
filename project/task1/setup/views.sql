@@ -1,3 +1,4 @@
+-- Создаем представления для используемых таблиц в схеме analysis
 CREATE VIEW analysis.users AS SELECT * FROM production.users;
 CREATE VIEW analysis.OrderItems AS SELECT * FROM production.OrderItems;
 CREATE VIEW analysis.OrderStatuses AS SELECT * FROM production.OrderStatuses;
