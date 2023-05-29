@@ -5,8 +5,8 @@ SELECT r.user_id,
        f.frequency,
        m.monetary_value
 FROM analysis.tmp_rfm_recency AS r
-LEFT JOIN analysis.tmp_rfm_frequency AS f ON r.user_id = f.user_id
-LEFT JOIN analysis.tmp_rfm_monetary_value AS m ON r.user_id = m.user_id;
+INNER JOIN analysis.tmp_rfm_frequency AS f ON r.user_id = f.user_id
+INNER JOIN analysis.tmp_rfm_monetary_value AS m ON r.user_id = m.user_id;
 
 -- Просматриваем первые 10 пользователей
 SELECT *
