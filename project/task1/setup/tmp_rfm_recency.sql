@@ -10,6 +10,6 @@ SELECT u.id AS user_id,
        NTILE(5) OVER (ORDER BY MAX(o.order_ts) NULLS FIRST) AS recency
 FROM analysis.users AS u
 LEFT JOIN analysis.orders AS o ON u.id = o.user_id
-WHERE o.status = '4'
-      AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+          AND o.status = (SELECT id FROM analysis.OrderStatuses WHERE key = 'Closed')
+          AND EXTRACT (YEAR FROM o.order_ts) >= 2022
 GROUP BY 1;

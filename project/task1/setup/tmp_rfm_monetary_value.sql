@@ -10,7 +10,6 @@ SELECT u.id AS user_id,
        NTILE(5) OVER (ORDER BY SUM(o.cost) ASC) AS monetary_value
 FROM analysis.users AS u
 LEFT JOIN analysis.orders AS o ON u.id = o.user_id
-WHERE o.status = '4' 
-      AND extract(year FROM o.order_ts) = '2022'
-GROUP BY 1
-ORDER BY monetary_value ASC;
+          AND o.status = (SELECT id FROM analysis.OrderStatuses WHERE key = 'Closed')
+          AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+GROUP BY 1;

@@ -85,11 +85,11 @@ CONSTRAINT users_pkey PRIMARY KEY (id) установлены ограничен
 Напишите SQL-запросы для создания пяти VIEW (по одному на каждую таблицу) и выполните их. Для проверки предоставьте код создания VIEW.
 
 ```SQL
-CREATE VIEW analysis.users AS SELECT * FROM production.users;
-CREATE VIEW analysis.OrderItems AS SELECT * FROM production.OrderItems;
-CREATE VIEW analysis.OrderStatuses AS SELECT * FROM production.OrderStatuses;
-CREATE VIEW analysis.products AS SELECT * FROM production.products;
-CREATE VIEW analysis.orders AS SELECT * FROM production.orders;
+CREATE OR REPLACE VIEW analysis.users AS SELECT * FROM production.users;
+CREATE OR REPLACE VIEW analysis.OrderItems AS SELECT * FROM production.OrderItems;
+CREATE OR REPLACE VIEW analysis.OrderStatuses AS SELECT * FROM production.OrderStatuses;
+CREATE OR REPLACE VIEW analysis.products AS SELECT * FROM production.products;
+CREATE OR REPLACE VIEW analysis.orders AS SELECT * FROM production.orders;
 ```
 
 ### 1.4.2. Напишите DDL-запрос для создания витрины.**
@@ -99,9 +99,9 @@ CREATE VIEW analysis.orders AS SELECT * FROM production.orders;
 ```SQL
 CREATE TABLE dm_rfm_segments(
     user_id INT NOT NULL PRIMARY KEY,
-    recency INT NOT NULL,
-    frequency INT NOT NULL,
-    monetary_value INT NOT NULL
+    recency INT NOT NULL CHECK(recency >= 1 AND recency <= 5),
+    frequency INT NOT NULL CHECK(frequency >= 1 AND frequency <= 5),
+    monetary_value INT NOT NULL CHECK(monetary_value >= 1 AND monetary_value <= 5)
 );
 ```
 
@@ -122,10 +122,9 @@ SELECT u.id AS user_id,
        NTILE(5) OVER (ORDER BY COUNT(o.order_id) ASC) AS frequency 
 FROM analysis.users AS u
 LEFT JOIN analysis.orders AS o ON u.id = o.user_id
-WHERE o.status = '4' 
-      AND EXTRACT(year FROM o.order_ts) = '2022'
-GROUP BY 1
-ORDER BY frequency ASC;
+          AND o.status = (SELECT id FROM analysis.OrderStatuses WHERE key = 'Closed')
+          AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+GROUP BY 1;
 
 CREATE TABLE analysis.tmp_rfm_monetary_value (
  user_id INT NOT NULL PRIMARY KEY,
@@ -136,10 +135,9 @@ SELECT u.id AS user_id,
        NTILE(5) OVER (ORDER BY SUM(o.cost) ASC) AS monetary_value
 FROM analysis.users AS u
 LEFT JOIN analysis.orders AS o ON u.id = o.user_id
-WHERE o.status = '4' 
-      AND extract(year FROM o.order_ts) = '2022'
-GROUP BY 1
-ORDER BY monetary_value ASC;
+          AND o.status = (SELECT id FROM analysis.OrderStatuses WHERE key = 'Closed')
+          AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+GROUP BY 1;
 
 CREATE TABLE analysis.tmp_rfm_recency (
  user_id INT NOT NULL PRIMARY KEY,
@@ -150,8 +148,8 @@ SELECT u.id AS user_id,
        NTILE(5) OVER (ORDER BY MAX(o.order_ts) NULLS FIRST) AS recency
 FROM analysis.users AS u
 LEFT JOIN analysis.orders AS o ON u.id = o.user_id
-WHERE o.status = '4'
-      AND EXTRACT (YEAR FROM o.order_ts) >= 2022
+          AND o.status = (SELECT id FROM analysis.OrderStatuses WHERE key = 'Closed')
+          AND EXTRACT (YEAR FROM o.order_ts) >= 2022
 GROUP BY 1;
 
 -- Добавляем консолидированную информацию в нашу витрину (dm_rfm_segments)
@@ -161,8 +159,8 @@ SELECT r.user_id,
        f.frequency,
        m.monetary_value
 FROM analysis.tmp_rfm_recency AS r
-LEFT JOIN analysis.tmp_rfm_frequency AS f ON r.user_id = f.user_id
-LEFT JOIN analysis.tmp_rfm_monetary_value AS m ON r.user_id = m.user_id;
+INNER JOIN analysis.tmp_rfm_frequency AS f ON r.user_id = f.user_id
+INNER JOIN analysis.tmp_rfm_monetary_value AS m ON r.user_id = m.user_id;
 ```
 
 
